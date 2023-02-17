@@ -5,10 +5,28 @@
     xmlns:local="using:ItemRepeaterShiftedLayoutExample"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:controls="using:Microsoft.UI.Xaml.Controls"
     mc:Ignorable="d"
     Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
 
     <Grid>
-
+        <ScrollViewer x:Name="Animated_ScrollViewer" 
+                              Grid.Column="0">
+            <controls:ItemsRepeater
+                ItemsSource="{x:Bind Items}"
+                VerticalCacheLength="0"
+                HorizontalCacheLength="0">
+                <controls:ItemsRepeater.Layout>
+                    <local:VirtualLayoutTest />
+                </controls:ItemsRepeater.Layout>
+                <controls:ItemsRepeater.ItemTemplate>
+                    <DataTemplate x:DataType="local:Item">
+                        <Grid Background="Aquamarine"  Margin="10,10,10,10" BorderBrush="Black" BorderThickness="2">
+                            <TextBlock Text="{x:Bind Text}" />
+                        </Grid>
+                    </DataTemplate>
+                </controls:ItemsRepeater.ItemTemplate>
+            </controls:ItemsRepeater>
+        </ScrollViewer>
     </Grid>
 </Page>
