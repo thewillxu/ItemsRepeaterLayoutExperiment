@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Reflection;
 using Windows.ApplicationModel.Store;
 using Windows.Foundation;
+using Windows.Networking.NetworkOperators;
 using static ItemRepeaterShiftedLayoutExample.LayoutItems;
 
 namespace ItemRepeaterShiftedLayoutExample
@@ -23,7 +24,6 @@ namespace ItemRepeaterShiftedLayoutExample
 
     public class VirtualLayoutTest : VirtualizingLayout
     {
-        private Anchor LastAnchor;
         private LayoutItems LayoutItems = new LayoutItems();
         private double AverageHeight = 100;
 
@@ -49,6 +49,7 @@ namespace ItemRepeaterShiftedLayoutExample
                 var element = context.GetOrCreateElementAt(item.Index);
                 element.Measure(new Size(item.Rect.Width, item.Rect.Height));
                 element.Arrange(item.Rect);
+                // Debug.WriteLine($"MeasureAndArrangeLayout {item.Index} = {item.Rect}");
             }
         }
 
@@ -62,8 +63,10 @@ namespace ItemRepeaterShiftedLayoutExample
 
             int estimatedIndex = Math.Max(0, (int)Math.Round(context.RealizationRect.Top / AverageHeight));
             double estimatedTop = estimatedIndex * AverageHeight;
-            LastAnchor = new Anchor(estimatedIndex, estimatedTop);
-            return LastAnchor;
+            var anchor = new Anchor(estimatedIndex, estimatedTop);
+
+            Debug.WriteLine($"GetAnchor calculated new anchor {anchor}");
+            return anchor;
         }
 
         private RectWithIndex GetVisibleItem(VirtualizingLayoutContext context)
@@ -86,28 +89,57 @@ namespace ItemRepeaterShiftedLayoutExample
 
         private (int, double) GenerateLayout(VirtualizingLayoutContext context, Size availableSize, Anchor anchor)
         {
-            var currentTop = anchor.Top;
-            var index = anchor.Index;
-
             LayoutItems.Clear();
 
-            while (currentTop <= context.RealizationRect.Bottom && index < context.ItemCount)
+            GenerateLayoutUp(context, availableSize, anchor.Top, anchor.Index - 1);
+
+            var (nextIndex, bottom) = GenerateLayoutDown(context, availableSize, anchor.Top, anchor.Index);
+
+            RecalculateAverageHeight(context.RealizationRect.Top, bottom, nextIndex - anchor.Index);
+
+            return (nextIndex, bottom);
+        }
+
+        private (int prevIndex, double top) GenerateLayoutUp(VirtualizingLayoutContext context, Size availableSize, double bottom, int index)
+        {
+            while (bottom >= context.RealizationRect.Top && index >= 0)
             {
                 Item item = context.GetItemAt(index) as Item;
                 var width = availableSize.Width;
                 var height = item.Height;
 
-                LayoutItems.SetItem(index, new Rect(0, currentTop, width, height));
+                LayoutItems.SetItem(index, new Rect(0, bottom - height, width, height));
 
-                currentTop += height;
+                bottom -= height;
+                index--;
+            }
+
+            return (index, bottom);
+        }
+
+        private (int nextIndex, double bottom) GenerateLayoutDown(VirtualizingLayoutContext context, Size availableSize, double top, int index)
+        {
+            while (top <= context.RealizationRect.Bottom && index < context.ItemCount)
+            {
+                Item item = context.GetItemAt(index) as Item;
+                var width = availableSize.Width;
+                var height = item.Height;
+
+                LayoutItems.SetItem(index, new Rect(0, top, width, height));
+
+                top += height;
                 index++;
             }
 
-            var viewCount = index - anchor.Index;
-            if (viewCount > 0)
+            return (index, top);
+        }
+
+        private void RecalculateAverageHeight(double top, double bottom, int count)
+        {
+            if (count > 0)
             {
-                var viewHeight = currentTop - context.RealizationRect.Top;
-                var averageViewHeight = viewHeight / viewCount;
+                var viewHeight = bottom - top;
+                var averageViewHeight = viewHeight / count;
                 var newAverageHeight = (AverageHeight * 10 + averageViewHeight) / 11;
                 if (newAverageHeight != AverageHeight)
                 {
@@ -115,9 +147,6 @@ namespace ItemRepeaterShiftedLayoutExample
                     Debug.WriteLine($"AverageHeight = {AverageHeight}");
                 }
             }
-
-            return (index, currentTop);
         }
-
     }
 }
