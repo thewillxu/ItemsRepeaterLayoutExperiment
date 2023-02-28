@@ -10,7 +10,16 @@
     Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
 
     <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="10">
+            <Button Name="Top" Click="{x:Bind ScrollToTop}" >Scroll To Top</Button>
+            <Button Name="Bottom" Click="{x:Bind ScrollToBottom}" >Scroll To Bottom</Button>
+        </StackPanel>
         <ScrollViewer x:Name="Animated_ScrollViewer" 
+                              Grid.Row="1"
                               Grid.Column="0">
             <controls:ItemsRepeater
                 ItemsSource="{x:Bind Items}"

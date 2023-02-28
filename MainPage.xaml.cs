@@ -13,14 +13,14 @@ namespace ItemRepeaterShiftedLayoutExample
     /// </summary>
     public sealed partial class MainPage : Page
     {
-           
+
         internal List<Item> Items;
 
         public MainPage()
         {
             Random random = new Random();
             Items = new List<Item>();
-            for(int i = 0;i < 1000; i++)
+            for (int i = 0; i < 1000; i++)
             {
                 byte randomColorR = (byte)random.Next(0, 255);
                 byte randomColorG = (byte)random.Next(0, 255);
@@ -31,5 +31,15 @@ namespace ItemRepeaterShiftedLayoutExample
 
             this.InitializeComponent();
         }
+
+        public void ScrollToTop()
+        {
+            Animated_ScrollViewer.ChangeView(null, 0, null, true);
+        }
+
+        public void ScrollToBottom()
+        {
+            Animated_ScrollViewer.ChangeView(null, Animated_ScrollViewer.ExtentHeight, null, true);
+        }    
     }
 }
