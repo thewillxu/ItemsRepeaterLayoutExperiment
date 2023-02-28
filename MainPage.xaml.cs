@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using Windows.UI.Xaml.Controls;
+using Windows.UI;
+using Windows.UI.Composition;
 
 // The Blank Page item template is documented at https://go.microsoft.com/fwlink/?LinkId=402352&clcid=0x409
 
@@ -11,6 +13,7 @@ namespace ItemRepeaterShiftedLayoutExample
     /// </summary>
     public sealed partial class MainPage : Page
     {
+           
         internal List<Item> Items;
 
         public MainPage()
@@ -19,7 +22,11 @@ namespace ItemRepeaterShiftedLayoutExample
             Items = new List<Item>();
             for(int i = 0;i < 1000; i++)
             {
-                Items.Add(new Item() { Height = random.Next(50, 200), Text = i.ToString() });
+                byte randomColorR = (byte)random.Next(0, 255);
+                byte randomColorG = (byte)random.Next(0, 255);
+                byte randomColorB = (byte)random.Next(0, 255);
+                Color randomColor = Color.FromArgb(255, randomColorR, randomColorG, randomColorB);
+                Items.Add(new Item() { Height = random.Next(50, 200), Text = i.ToString(), Color = randomColor });
             }
 
             this.InitializeComponent();

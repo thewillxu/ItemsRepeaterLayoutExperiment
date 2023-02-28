@@ -21,8 +21,11 @@
                 </controls:ItemsRepeater.Layout>
                 <controls:ItemsRepeater.ItemTemplate>
                     <DataTemplate x:DataType="local:Item">
-                        <Grid Background="Aquamarine"  Margin="10,10,10,10" BorderBrush="Black" BorderThickness="2">
-                            <TextBlock Text="{x:Bind Text}" />
+                        <Grid Margin="10,10,10,10" BorderBrush="Black" BorderThickness="2">
+                            <Grid.Background>
+                                <SolidColorBrush Color="{x:Bind Color}"/>
+                            </Grid.Background>
+                            <TextBlock Text="{x:Bind Text}"/>
                         </Grid>
                     </DataTemplate>
                 </controls:ItemsRepeater.ItemTemplate>

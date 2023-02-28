@@ -29,15 +29,19 @@ namespace ItemRepeaterShiftedLayoutExample
 
         protected override Size MeasureOverride(VirtualizingLayoutContext context, Size availableSize)
         {
-            Debug.WriteLine($"MeasureOverride {context.RealizationRect}");
+            Debug.WriteLine($"MeasureOverride RealizationRect = {context.RealizationRect} LayoutOrigin = {context.LayoutOrigin}");
 
             Anchor anchor = GetAnchor(context);
-            var (lastIndex, lastBottom) = GenerateLayout(context, availableSize, anchor);
+            GenerateLayout(context, availableSize, anchor);
+
+            RecalculateAverageHeight();
 
             MeasureAndArrangeLayout(context);
 
-            var remainingItems = context.ItemCount - lastIndex;
-            var estimatedBottom = remainingItems >= 0 ? lastBottom + remainingItems * AverageHeight : lastBottom;
+            var lastLayoutItem = LayoutItems.LastItem;
+            var remainingItems = context.ItemCount - lastLayoutItem.Index;
+            var bottom = lastLayoutItem.Rect.Bottom;
+            var estimatedBottom = remainingItems >= 0 ? bottom + remainingItems * AverageHeight : bottom;
 
             return new Size(availableSize.Width, estimatedBottom);
         }
@@ -65,7 +69,7 @@ namespace ItemRepeaterShiftedLayoutExample
             double estimatedTop = estimatedIndex * AverageHeight;
             var anchor = new Anchor(estimatedIndex, estimatedTop);
 
-            Debug.WriteLine($"GetAnchor calculated new anchor {anchor}");
+            Debug.WriteLine($"GetAnchor calculated new anchor {anchor.Index}, {anchor.Top}");
             return anchor;
         }
 
@@ -87,20 +91,14 @@ namespace ItemRepeaterShiftedLayoutExample
             return rectA.Bottom >= rectB.Top && rectA.Top <= rectB.Bottom;
         }
 
-        private (int, double) GenerateLayout(VirtualizingLayoutContext context, Size availableSize, Anchor anchor)
+        private void GenerateLayout(VirtualizingLayoutContext context, Size availableSize, Anchor anchor)
         {
             LayoutItems.Clear();
-
             GenerateLayoutUp(context, availableSize, anchor.Top, anchor.Index - 1);
-
-            var (nextIndex, bottom) = GenerateLayoutDown(context, availableSize, anchor.Top, anchor.Index);
-
-            RecalculateAverageHeight(context.RealizationRect.Top, bottom, nextIndex - anchor.Index);
-
-            return (nextIndex, bottom);
+            GenerateLayoutDown(context, availableSize, anchor.Top, anchor.Index);
         }
 
-        private (int prevIndex, double top) GenerateLayoutUp(VirtualizingLayoutContext context, Size availableSize, double bottom, int index)
+        private void GenerateLayoutUp(VirtualizingLayoutContext context, Size availableSize, double bottom, int index)
         {
             while (bottom >= context.RealizationRect.Top && index >= 0)
             {
@@ -113,11 +111,9 @@ namespace ItemRepeaterShiftedLayoutExample
                 bottom -= height;
                 index--;
             }
-
-            return (index, bottom);
         }
 
-        private (int nextIndex, double bottom) GenerateLayoutDown(VirtualizingLayoutContext context, Size availableSize, double top, int index)
+        private void GenerateLayoutDown(VirtualizingLayoutContext context, Size availableSize, double top, int index)
         {
             while (top <= context.RealizationRect.Bottom && index < context.ItemCount)
             {
@@ -130,12 +126,14 @@ namespace ItemRepeaterShiftedLayoutExample
                 top += height;
                 index++;
             }
-
-            return (index, top);
         }
 
-        private void RecalculateAverageHeight(double top, double bottom, int count)
+        private void RecalculateAverageHeight()
         {
+            double top = LayoutItems.FirstItem.Rect.Top;
+            double bottom = LayoutItems.LastItem.Rect.Bottom;
+            int count = LayoutItems.Count;
+
             if (count > 0)
             {
                 var viewHeight = bottom - top;

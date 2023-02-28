@@ -15,17 +15,21 @@ namespace ItemRepeaterShiftedLayoutExample
         }
 
         private List<Rect> Items = new List<Rect>();
-        private int StartIndex = 0;
-
-        public Rect this[int i] => Items[i - StartIndex];
+        private int FirstIndex = 0;
 
         public int Count { get => Items.Count; }
 
         public void Clear()
         {
             Items.Clear();
-            StartIndex = 0;
+            FirstIndex = 0;
         }
+
+        public RectWithIndex FirstItem { get => new RectWithIndex { Rect = Items[0], Index = FirstIndex }; }
+
+        public RectWithIndex LastItem { get => new RectWithIndex { Rect = Items[Items.Count - 1], Index = FirstIndex + Count }; }
+
+        public Rect GetItem(int index) => Items[index - FirstIndex];
 
         public void SetItem(int index, Rect item)
         {
@@ -34,18 +38,18 @@ namespace ItemRepeaterShiftedLayoutExample
             if (Count == 0)
             {
                 Items.Insert(0, item);
-                StartIndex = index;
+                FirstIndex = index;
             }
-            else if (index == StartIndex - 1)
+            else if (index == FirstIndex - 1)
             {
                 Items.Insert(0, item);
-                StartIndex = index;
+                FirstIndex = index;
             }
-            else if (index >= StartIndex && index < StartIndex + Count)
+            else if (index >= FirstIndex && index < FirstIndex + Count)
             {
-                Items[index - StartIndex] = item;
+                Items[index - FirstIndex] = item;
             }
-            else if (index == StartIndex + Count)
+            else if (index == FirstIndex + Count)
             {
                 Items.Add(item);
             }
@@ -62,7 +66,7 @@ namespace ItemRepeaterShiftedLayoutExample
         {
             for (int i = 0; i < Items.Count; ++i)
             {
-                yield return new RectWithIndex { Rect = Items[i], Index = StartIndex + i };
+                yield return new RectWithIndex { Rect = Items[i], Index = FirstIndex + i };
             }
         }
 
