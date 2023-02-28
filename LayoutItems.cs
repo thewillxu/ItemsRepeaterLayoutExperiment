@@ -17,6 +17,8 @@ namespace ItemRepeaterShiftedLayoutExample
         private List<Rect> Items = new List<Rect>();
         private int FirstIndex = 0;
 
+        private int LastIndex { get => FirstIndex + Count - 1; }
+
         public int Count { get => Items.Count; }
 
         public void Clear()
@@ -27,9 +29,19 @@ namespace ItemRepeaterShiftedLayoutExample
 
         public RectWithIndex FirstItem { get => new RectWithIndex { Rect = Items[0], Index = FirstIndex }; }
 
-        public RectWithIndex LastItem { get => new RectWithIndex { Rect = Items[Items.Count - 1], Index = FirstIndex + Count }; }
+        public RectWithIndex LastItem { get => new RectWithIndex { Rect = Items[Items.Count - 1], Index = FirstIndex + Count - 1 }; }
 
-        public Rect GetItem(int index) => Items[index - FirstIndex];
+        public RectWithIndex TryGetItem(int index)
+        {
+            if (Count > 0 && index >= FirstIndex && index <= LastIndex)
+            {
+                return new RectWithIndex { Rect = Items[index - FirstIndex], Index = index };
+            }
+            else
+            {
+                return null;
+            }
+        }
 
         public void SetItem(int index, Rect item)
         {

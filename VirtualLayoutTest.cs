@@ -26,16 +26,15 @@ namespace ItemRepeaterShiftedLayoutExample
     public class VirtualLayoutTest : VirtualizingLayout
     {
         private LayoutItems LayoutItems = new LayoutItems();
+        private Anchor LastAnchor = null;
         private double AverageHeight = 100;
+        private double AverageHeightAccumulator = 100;
 
         protected override Size MeasureOverride(VirtualizingLayoutContext context, Size availableSize)
         {
             Debug.WriteLine($"MeasureOverride RealizationRect = {context.RealizationRect} LayoutOrigin = {context.LayoutOrigin}");
 
-            Rect realizationRect = context.RealizationRect;
-            realizationRect.Y -= context.LayoutOrigin.Y;
-
-            Anchor anchor = GetAnchor(realizationRect);
+            Anchor anchor = GetAnchor(context.RealizationRect, context.ItemCount);
 
             GenerateLayout(context, context.RealizationRect, availableSize, anchor);
 
@@ -47,9 +46,11 @@ namespace ItemRepeaterShiftedLayoutExample
 
             RecalculateAverageHeight();
 
-            Debug.WriteLine($"MeasureOverride extent = {extent}");
+            Debug.WriteLine($"MeasureOverride extent = {extent}, layoutRange = {LayoutItems.FirstItem.Index} - {LayoutItems.LastItem.Index}");
 
-            return new Size(extent.Width, extent.Bottom);
+            LastAnchor = anchor;
+
+            return new Size(extent.Width, extent.Height);
         }
         protected override Size ArrangeOverride(VirtualizingLayoutContext context, Size finalSize)
         {
@@ -57,15 +58,40 @@ namespace ItemRepeaterShiftedLayoutExample
             return finalSize;
         }
 
-        private Anchor GetAnchor(Rect realizationRect)
+        private Anchor GetAnchor(Rect realizationRect, int itemCount)
         {
-            RectWithIndex item = GetVisibleItem(realizationRect);
-            if (item != null)
+            // Reuse the previous anchor if it is visible to help prevent an oscillation loop of the anchor
+            // when recalculating the extent. Without this we may get into an infinite iteration where
+            // 
+            // * MeasureOverride called
+            //   * Anchor is A
+            //   * LayoutOrigin is set to Y
+            // * MeasureOverride called
+            //   * Anchor is calculated as A+1 (because the RealizationRect was shifted enough due to the change in LayoutOrigin)
+            //   * LayoutOrigin is set to Y-Z
+            // * MeasureOverride called
+            //   * Anchor is calculated as A (because the RealizationRect shifted due to Y-Z causing A to be visible again)
+            //   * LayoutOrigin is set to Y
+            // Repeat ad infinitum
+            if (LastAnchor != null &&
+                LayoutItems.TryGetItem(LastAnchor.Index) is RectWithIndex anchorItem &&
+                DoesIntersect(realizationRect, anchorItem.Rect))
             {
+                Debug.WriteLine($"GetAnchor reusing previous anchor {anchorItem.Index}, {anchorItem.Rect.Top}");
+                return new Anchor(anchorItem.Index, anchorItem.Rect.Top);
+            };
+
+            // Reuse the first visible item from the previous layout.
+            // This keeps the anchor consistent with the previous render so it doesn't jump around the screen
+            if (GetVisibleItem(realizationRect) is RectWithIndex item)
+            {
+                Debug.WriteLine($"GetAnchor reusing previous layout item {item.Index}, {item.Rect.Top}");
                 return new Anchor(item.Index, item.Rect.Top);
             }
 
-            int estimatedIndex = Math.Max(0, (int)Math.Round(realizationRect.Top / AverageHeight));
+            // If we have no history then calculate a new anchor from the origin of 0.
+            // This should also produce an Extent later that is at (or near) 0,0
+            int estimatedIndex = Math.Min(itemCount - 1, Math.Max(0, (int)Math.Round(realizationRect.Top / AverageHeight)));
             double estimatedTop = estimatedIndex * AverageHeight;
             var anchor = new Anchor(estimatedIndex, estimatedTop);
 
@@ -112,19 +138,20 @@ namespace ItemRepeaterShiftedLayoutExample
 
         private void RecalculateAverageHeight()
         {
-            double top = LayoutItems.FirstItem.Rect.Top;
-            double bottom = LayoutItems.LastItem.Rect.Bottom;
             int count = LayoutItems.Count;
-
             if (count > 0)
             {
+                double top = LayoutItems.FirstItem.Rect.Top;
+                double bottom = LayoutItems.LastItem.Rect.Bottom;
+
                 var viewHeight = bottom - top;
                 var averageViewHeight = viewHeight / count;
-                var newAverageHeight = (AverageHeight * 10 + averageViewHeight) / 11;
-                newAverageHeight = Math.Round(newAverageHeight, 2);
-                if (Math.Abs(newAverageHeight - AverageHeight) > 10)
+                AverageHeightAccumulator = (AverageHeightAccumulator * 10 + averageViewHeight) / 11;
+
+                // Reduce change frequency of AverageHeight to reduce oscillations due to recalculation.
+                if (Math.Abs(AverageHeightAccumulator - AverageHeight) > 10)
                 {
-                    AverageHeight = newAverageHeight;
+                    AverageHeight = AverageHeightAccumulator;
                     Debug.WriteLine($"AverageHeight = {AverageHeight}");
                 }
             }
@@ -132,6 +159,12 @@ namespace ItemRepeaterShiftedLayoutExample
 
         private Rect GetExtent(VirtualizingLayoutContext context, Size availableSize)
         {
+            if (LayoutItems.Count <= 0)
+            {
+                Debug.WriteLine($"GetExtent - No Items were laid out, resetting extent");
+                return new Rect(0, 0, availableSize.Width, context.ItemCount * AverageHeight);
+            }
+
             var firstItem = LayoutItems.FirstItem;
             var firstIndex = firstItem.Index;
             var firstTop = firstItem.Rect.Top;
@@ -139,11 +172,13 @@ namespace ItemRepeaterShiftedLayoutExample
             var originOffset = firstTop - estimatedTop;
 
             var lastLayoutItem = LayoutItems.LastItem;
-            var remainingItems = context.ItemCount - lastLayoutItem.Index;
+            var lastItemIndex = context.ItemCount - 1;
+            var remainingItems = lastItemIndex - lastLayoutItem.Index;
             var bottom = lastLayoutItem.Rect.Bottom;
             var estimatedBottom = remainingItems >= 0 ? bottom + remainingItems * AverageHeight : bottom;
+            var estimatedHeight = estimatedBottom - originOffset;
 
-            return new Rect(0, originOffset, availableSize.Width, estimatedBottom);
+            return new Rect(0, originOffset, availableSize.Width, estimatedHeight);
         }
 
         private bool DoesIntersect(Rect rectA, Rect rectB)
