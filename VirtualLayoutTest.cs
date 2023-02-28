@@ -2,6 +2,7 @@
 using System;
 using System.Diagnostics;
 using System.Reflection;
+using System.Xml.Linq;
 using Windows.ApplicationModel.Store;
 using Windows.Foundation;
 using Windows.Networking.NetworkOperators;
@@ -31,41 +32,40 @@ namespace ItemRepeaterShiftedLayoutExample
         {
             Debug.WriteLine($"MeasureOverride RealizationRect = {context.RealizationRect} LayoutOrigin = {context.LayoutOrigin}");
 
-            Anchor anchor = GetAnchor(context);
-            GenerateLayout(context, availableSize, anchor);
+            Rect realizationRect = context.RealizationRect;
+            realizationRect.Y -= context.LayoutOrigin.Y;
+
+            Anchor anchor = GetAnchor(realizationRect);
+
+            GenerateLayout(context, context.RealizationRect, availableSize, anchor);
+
+            Rect extent = GetExtent(context, availableSize);
+
+            MeasureLayout(context, extent);
+
+            context.LayoutOrigin = new Point(extent.Left, extent.Top);
 
             RecalculateAverageHeight();
 
-            MeasureAndArrangeLayout(context);
+            Debug.WriteLine($"MeasureOverride extent = {extent}");
 
-            var lastLayoutItem = LayoutItems.LastItem;
-            var remainingItems = context.ItemCount - lastLayoutItem.Index;
-            var bottom = lastLayoutItem.Rect.Bottom;
-            var estimatedBottom = remainingItems >= 0 ? bottom + remainingItems * AverageHeight : bottom;
-
-            return new Size(availableSize.Width, estimatedBottom);
+            return new Size(extent.Width, extent.Bottom);
+        }
+        protected override Size ArrangeOverride(VirtualizingLayoutContext context, Size finalSize)
+        {
+            ArrangeLayout(context);
+            return finalSize;
         }
 
-        private void MeasureAndArrangeLayout(VirtualizingLayoutContext context)
+        private Anchor GetAnchor(Rect realizationRect)
         {
-            foreach (var item in LayoutItems)
-            {
-                var element = context.GetOrCreateElementAt(item.Index);
-                element.Measure(new Size(item.Rect.Width, item.Rect.Height));
-                element.Arrange(item.Rect);
-                // Debug.WriteLine($"MeasureAndArrangeLayout {item.Index} = {item.Rect}");
-            }
-        }
-
-        private Anchor GetAnchor(VirtualizingLayoutContext context)
-        {
-            RectWithIndex item = GetVisibleItem(context);
+            RectWithIndex item = GetVisibleItem(realizationRect);
             if (item != null)
             {
                 return new Anchor(item.Index, item.Rect.Top);
             }
 
-            int estimatedIndex = Math.Max(0, (int)Math.Round(context.RealizationRect.Top / AverageHeight));
+            int estimatedIndex = Math.Max(0, (int)Math.Round(realizationRect.Top / AverageHeight));
             double estimatedTop = estimatedIndex * AverageHeight;
             var anchor = new Anchor(estimatedIndex, estimatedTop);
 
@@ -73,11 +73,11 @@ namespace ItemRepeaterShiftedLayoutExample
             return anchor;
         }
 
-        private RectWithIndex GetVisibleItem(VirtualizingLayoutContext context)
+        private RectWithIndex GetVisibleItem(Rect realizationRect)
         {
             foreach (var item in LayoutItems)
             {
-                if (DoesIntersect(item.Rect, context.RealizationRect))
+                if (DoesIntersect(item.Rect, realizationRect))
                 {
                     return item;
                 }
@@ -86,45 +86,27 @@ namespace ItemRepeaterShiftedLayoutExample
             return null;
         }
 
-        private bool DoesIntersect(Rect rectA, Rect rectB)
+        private void MeasureLayout(VirtualizingLayoutContext context, Rect extent)
         {
-            return rectA.Bottom >= rectB.Top && rectA.Top <= rectB.Bottom;
-        }
-
-        private void GenerateLayout(VirtualizingLayoutContext context, Size availableSize, Anchor anchor)
-        {
-            LayoutItems.Clear();
-            GenerateLayoutUp(context, availableSize, anchor.Top, anchor.Index - 1);
-            GenerateLayoutDown(context, availableSize, anchor.Top, anchor.Index);
-        }
-
-        private void GenerateLayoutUp(VirtualizingLayoutContext context, Size availableSize, double bottom, int index)
-        {
-            while (bottom >= context.RealizationRect.Top && index >= 0)
+            foreach (var item in LayoutItems)
             {
-                Item item = context.GetItemAt(index) as Item;
-                var width = availableSize.Width;
-                var height = item.Height;
-
-                LayoutItems.SetItem(index, new Rect(0, bottom - height, width, height));
-
-                bottom -= height;
-                index--;
+                var element = context.GetOrCreateElementAt(item.Index);
+                element.Measure(new Size(item.Rect.Width, item.Rect.Height));
             }
         }
 
-        private void GenerateLayoutDown(VirtualizingLayoutContext context, Size availableSize, double top, int index)
+        private void ArrangeLayout(VirtualizingLayoutContext context)
         {
-            while (top <= context.RealizationRect.Bottom && index < context.ItemCount)
+            Point origin = context.LayoutOrigin;
+
+            foreach (var item in LayoutItems)
             {
-                Item item = context.GetItemAt(index) as Item;
-                var width = availableSize.Width;
-                var height = item.Height;
+                var element = context.GetOrCreateElementAt(item.Index);
 
-                LayoutItems.SetItem(index, new Rect(0, top, width, height));
-
-                top += height;
-                index++;
+                Rect elementRect = item.Rect;
+                elementRect.X -= origin.X;
+                elementRect.Y -= origin.Y;
+                element.Arrange(elementRect);
             }
         }
 
@@ -139,11 +121,70 @@ namespace ItemRepeaterShiftedLayoutExample
                 var viewHeight = bottom - top;
                 var averageViewHeight = viewHeight / count;
                 var newAverageHeight = (AverageHeight * 10 + averageViewHeight) / 11;
-                if (newAverageHeight != AverageHeight)
+                newAverageHeight = Math.Round(newAverageHeight, 2);
+                if (Math.Abs(newAverageHeight - AverageHeight) > 10)
                 {
                     AverageHeight = newAverageHeight;
                     Debug.WriteLine($"AverageHeight = {AverageHeight}");
                 }
+            }
+        }
+
+        private Rect GetExtent(VirtualizingLayoutContext context, Size availableSize)
+        {
+            var firstItem = LayoutItems.FirstItem;
+            var firstIndex = firstItem.Index;
+            var firstTop = firstItem.Rect.Top;
+            var estimatedTop = firstIndex * AverageHeight;
+            var originOffset = firstTop - estimatedTop;
+
+            var lastLayoutItem = LayoutItems.LastItem;
+            var remainingItems = context.ItemCount - lastLayoutItem.Index;
+            var bottom = lastLayoutItem.Rect.Bottom;
+            var estimatedBottom = remainingItems >= 0 ? bottom + remainingItems * AverageHeight : bottom;
+
+            return new Rect(0, originOffset, availableSize.Width, estimatedBottom);
+        }
+
+        private bool DoesIntersect(Rect rectA, Rect rectB)
+        {
+            return rectA.Bottom >= rectB.Top && rectA.Top <= rectB.Bottom;
+        }
+
+        private void GenerateLayout(VirtualizingLayoutContext context, Rect realizationRect, Size availableSize, Anchor anchor)
+        {
+            LayoutItems.Clear();
+            GenerateLayoutUp(context, realizationRect, availableSize, anchor.Top, anchor.Index - 1);
+            GenerateLayoutDown(context, realizationRect, availableSize, anchor.Top, anchor.Index);
+        }
+
+        private void GenerateLayoutUp(VirtualizingLayoutContext context, Rect realizationRect, Size availableSize, double bottom, int index)
+        {
+            while (bottom >= realizationRect.Top && index >= 0)
+            {
+                Item item = context.GetItemAt(index) as Item;
+                var width = availableSize.Width;
+                var height = item.Height;
+
+                LayoutItems.SetItem(index, new Rect(0, bottom - height, width, height));
+
+                bottom -= height;
+                index--;
+            }
+        }
+
+        private void GenerateLayoutDown(VirtualizingLayoutContext context, Rect realizationRect, Size availableSize, double top, int index)
+        {
+            while (top <= realizationRect.Bottom && index < context.ItemCount)
+            {
+                Item item = context.GetItemAt(index) as Item;
+                var width = availableSize.Width;
+                var height = item.Height;
+
+                LayoutItems.SetItem(index, new Rect(0, top, width, height));
+
+                top += height;
+                index++;
             }
         }
     }
