@@ -23,9 +23,9 @@ namespace ItemRepeaterShiftedLayoutExample
         public readonly double Top;
     }
 
-    public class VirtualLayoutTest : VirtualizingLayout
+    public class DynamicSizeVirtualLayout : VirtualizingLayout
     {
-        private LayoutItems LayoutItems = new LayoutItems();
+        private readonly LayoutItems LayoutItems = new LayoutItems();
         private Anchor LastAnchor = null;
         private double AverageHeight = 100;
         private double AverageHeightAccumulator = 100;
