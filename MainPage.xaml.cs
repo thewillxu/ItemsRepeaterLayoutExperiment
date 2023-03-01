@@ -13,14 +13,18 @@ namespace ItemRepeaterShiftedLayoutExample
     /// </summary>
     public sealed partial class MainPage : Page
     {
+        // Set a fixed seed for consistency between runs.  Change the seed here to test different variations of the data
+        const int RandomNumberSeed = 0;
+
+        const int NumberOfItems = 1000;
 
         internal List<Item> Items;
 
         public MainPage()
         {
-            Random random = new Random();
+            Random random = new Random(RandomNumberSeed);
             Items = new List<Item>();
-            for (int i = 0; i < 1000; i++)
+            for (int i = 0; i < NumberOfItems; i++)
             {
                 byte randomColorR = (byte)random.Next(0, 255);
                 byte randomColorG = (byte)random.Next(0, 255);
