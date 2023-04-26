@@ -119,6 +119,7 @@
     <Compile Include="App.xaml.cs">
       <DependentUpon>App.xaml</DependentUpon>
     </Compile>
+    <Compile Include="StaticLayout.cs" />
     <Compile Include="Item.cs" />
     <Compile Include="LayoutItems.cs" />
     <Compile Include="MainPage.xaml.cs">

@@ -1,11 +1,13 @@
 ﻿using Microsoft.UI.Xaml.Controls;
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Reflection;
 using System.Xml.Linq;
 using Windows.ApplicationModel.Store;
 using Windows.Foundation;
 using Windows.Networking.NetworkOperators;
+using Windows.UI.Xaml;
 using static ItemRepeaterShiftedLayoutExample.LayoutItems;
 
 namespace ItemRepeaterShiftedLayoutExample
@@ -25,14 +27,29 @@ namespace ItemRepeaterShiftedLayoutExample
 
     public class DynamicSizeVirtualLayout : VirtualizingLayout
     {
-        private readonly LayoutItems LayoutItems = new LayoutItems();
+        public static readonly DependencyProperty ItemsProperty = DependencyProperty.Register(
+           "Items",
+           typeof(List<Item>),
+           typeof(DynamicSizeVirtualLayout),
+           new PropertyMetadata(null));
+
+        private LayoutItems LayoutItems = new LayoutItems();
         private Anchor LastAnchor = null;
         private double AverageHeight = 100;
         private double AverageHeightAccumulator = 100;
+        private StaticLayout StaticLayout = new StaticLayout();
+
+        public List<Item> Items
+        {
+            get => (List<Item>)GetValue(ItemsProperty);
+            set => SetValue(ItemsProperty, value);
+        }
 
         protected override Size MeasureOverride(VirtualizingLayoutContext context, Size availableSize)
         {
             Debug.WriteLine($"MeasureOverride: RealizationRect = {context.RealizationRect} LayoutOrigin = {context.LayoutOrigin}");
+
+            StaticLayout.Init(Items, availableSize.Width);
 
             Anchor anchor = GetAnchor(context.RealizationRect, context.ItemCount);
 
@@ -64,6 +81,12 @@ namespace ItemRepeaterShiftedLayoutExample
 
         private Anchor GetAnchor(Rect realizationRect, int itemCount)
         {
+            Anchor staticLayoutAnchor = StaticLayout.GetAnchor(realizationRect);
+            if (staticLayoutAnchor != null)
+            {
+                return staticLayoutAnchor;
+            }
+            
             // Reuse the previous anchor if it is visible to help prevent an oscillation loop of the anchor
             // when recalculating the extent. Without this we may get into an infinite iteration where
             // 
@@ -171,6 +194,12 @@ namespace ItemRepeaterShiftedLayoutExample
 
         private Rect GetExtent(VirtualizingLayoutContext context, Size availableSize)
         {
+            Rect? staticExtent = StaticLayout.GetExtent();
+            if (staticExtent.HasValue)
+            {
+                return staticExtent.Value;
+            }
+            
             if (LayoutItems.Count <= 0)
             {
                 Debug.WriteLine($"GetExtent - No Items were laid out, resetting extent");
@@ -204,6 +233,13 @@ namespace ItemRepeaterShiftedLayoutExample
 
         private void GenerateLayout(VirtualizingLayoutContext context, Rect realizationRect, Size availableSize, Anchor anchor)
         {
+            LayoutItems staticLayout = StaticLayout.GetLayout(realizationRect, anchor.Index);
+            if (staticLayout != null)
+            {
+                LayoutItems = staticLayout;
+                return;
+            }
+
             LayoutItems.Clear();
             GenerateLayoutUp(context, realizationRect, availableSize, anchor.Top, anchor.Index - 1);
             GenerateLayoutDown(context, realizationRect, availableSize, anchor.Top, anchor.Index);
